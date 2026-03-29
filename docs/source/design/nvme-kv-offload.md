@@ -1,13 +1,30 @@
-# 完整的NVMe KV SSD后端设计
+# NVMe KV SSD Backend Design Document
 
-## NVMe KV协议集成
-NVMe KV协议是针对键值存储的最新网络协议，它提供了高效的访问和操作NVMe SSD的能力。该协议旨在支持大规模存储系统中的高并发请求，确保数据的一致性和可用性。
+## Overview
+This document presents the design for NVMe Key-Value (KV) SSD backend, correcting prior misconceptions regarding NVMe KV. It is important to clarify that NVMe KV is not a network protocol; rather, it functions as a direct interface for storage management.
 
-## 后端实现
-后端实现遵循StorageBackendInterface接口，确保与不同存储后端的兼容性。通过实现该接口，存储后端能够与上层应用进行无缝交互，以提供高效的数据存取服务。
+## Key Definitions
+- **KeyID Mapping**: Each `user_key` is mapped to a 16B KeyID using a hashing mechanism:  
+  `KeyID = Hash128(salt || user_key)`  
+  This ensures uniqueness and scalability for key management.
 
-## 映射上层可变长度键到固定的16字节KV SSD键
-在此设计中，上层可变长度的键被映射到固定的16字节KV SSD键。为了实现这一点，我们采用了主机端索引的方式，包括写前日志（WAL）和检查点机制，以处理键的映射在发生碰撞时的情况。
+- **Value Payload Structure**: To ensure collision detection and proper storage management, the `user_key` is stored within the value payload structured as follows:  
+  `[u32 key_len | u32 value_len | key | value]`
+  This aligns with the design principles of OffsetAllocatorStorageBackend.
 
-## 碰撞处理
-在发生键冲突时，系统采用优化的碰撞处理算法，以确保数据的完整性和高效性。通过有效的冲突检测和解决方案，能够提高存储系统的性能和可靠性。
+## Abstractions and Integration
+- **NvmeKvDevice Abstraction**: The design also introduces the `NvmeKvDevice` abstraction, facilitating efficient interactions with the storage layer.
+- **StorageBackend Integration**: The `NvmeKvStorageBackend` integrates with `StorageBackendInterface`, allowing for seamless operations and consistent API usage across different storage backends.
+- **ScanMeta**: Utilizing a host index for efficient scanning operations, `ScanMeta` is designed to enhance data retrieval performance.
+
+## Persistence and Eviction Protocol
+- **Write-Ahead Logging (WAL) and Checkpointing**: Our design implements a robust persistence mechanism through WAL and checkpointing, ensuring data integrity during failures.
+- **Eviction Protocol**: A two-phase eviction protocol is established to manage stored entries effectively, preventing memory overconsumption.
+
+## Configuration Variables
+The following configuration variables are essential for the deployment and tuning of the NVMe KV SSD backend:
+- `max_entries`: Maximum number of key-value entries supported.
+- `eviction_threshold`: The threshold at which the eviction process triggers.
+- `wal_enabled`: Boolean flag to enable/disable write-ahead logging.
+
+This design aims to set a foundation for building an efficient NVMe KV SSD backend that fully utilizes modern storage capabilities while addressing key operational considerations.
