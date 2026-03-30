@@ -1,4 +1,5 @@
 #include "storage_backend.h"
+#include "nvme_kv_storage_backend.h"
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -3198,6 +3199,14 @@ CreateStorageBackend(const FileStorageConfig& config) {
         }
         case StorageBackendType::kOffsetAllocator: {
             return std::make_shared<OffsetAllocatorStorageBackend>(config);
+        }
+        case StorageBackendType::kNvmeKv: {
+            auto nvme_kv_config = NvmeKvBackendConfig::FromEnvironment();
+            if (!nvme_kv_config.Validate()) {
+                throw std::invalid_argument(
+                    "Invalid NVMe KV StorageBackend configuration");
+            }
+            return std::make_shared<NvmeKvStorageBackend>(config, nvme_kv_config);
         }
         default: {
             LOG(FATAL) << "Unsupported backend type";
